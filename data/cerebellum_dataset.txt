@@ -1,0 +1,2 @@
+Get the cerebellum dataset here: https://files.fededagos.me/datasets/cerebellum_dataset.h5
+Place it in your root directory to work with all experiments.
