@@ -1,14 +1,4 @@
-import os
-import logging
-import sys
-import inspect
-from copy import copy
-
-currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-parentdir = os.path.dirname(currentdir)
-sys.path.insert(0, parentdir)
-
-
+# Adapted from https://github.com/kekmodel/FixMatch-pytorch
 import argparse
 import logging
 import math
@@ -34,7 +24,6 @@ import utils.h5_utils as h5
 
 from utils.cerebellum import get_cerebellum_dataset
 from utils.misc import AverageMeter, accuracy
-from sklearn.metrics import f1_score
 
 logger = logging.getLogger(__name__)
 best_acc = 0
@@ -205,7 +194,7 @@ def train(
             test_model = model
 
         if args.local_rank in [-1, 0]:
-            test_loss, test_acc, f1 = test(args, test_loader, test_model, epoch)
+            test_loss, test_acc = test(args, test_loader, test_model, epoch)
 
             args.writer.add_scalar("train/1.train_loss", losses.avg, epoch)
             args.writer.add_scalar("train/2.train_loss_x", losses_x.avg, epoch)
@@ -242,12 +231,10 @@ def train(
 
             test_accs.append(test_acc)
             logger.info("Best top-1 acc: {:.2f}".format(best_acc))
-            logger.info("Mean top-1 acc: {:.2f}".format(np.mean(test_accs[-20:])))
-            logger.info("F1 score: {:.2f} \n".format(f1))
+            logger.info("Mean top-1 acc: {:.2f}\n".format(np.mean(test_accs[-20:])))
 
     if args.local_rank in [-1, 0]:
         args.writer.close()
-    return test_acc, f1
 
 
 def test(args, test_loader, model, epoch):
@@ -272,10 +259,6 @@ def test(args, test_loader, model, epoch):
             loss = F.cross_entropy(outputs, targets)
 
             prec1, prec2 = accuracy(outputs, targets, topk=(1, 2))
-            #! Calculate F1score here:
-
-            f1 = f1_score(targets.numpy(), outputs.argmax(1).numpy(), average="macro")
-
             losses.update(loss.item(), inputs.shape[0])
             top1.update(prec1.item(), inputs.shape[0])
             top5.update(prec2.item(), inputs.shape[0])
@@ -298,7 +281,7 @@ def test(args, test_loader, model, epoch):
 
     logger.info("top-1 acc: {:.2f}".format(top1.avg))
     logger.info("top-2 acc: {:.2f}".format(top5.avg))
-    return losses.avg, top1.avg, f1
+    return losses.avg, top1.avg
 
 
 def main():
@@ -328,10 +311,10 @@ def main():
         help="dataset name",
     )
     parser.add_argument(
-        "--total-steps", default=2**6, type=int, help="number of total steps to run"
+        "--total-steps", default=2**13, type=int, help="number of total steps to run"
     )
     parser.add_argument(
-        "--eval-step", default=2**3, type=int, help="number of eval steps to run"
+        "--eval-step", default=2**7, type=int, help="number of eval steps to run"
     )
     parser.add_argument(
         "--start-epoch",
@@ -606,7 +589,7 @@ def main():
     logger.info(f"  Total optimization steps = {args.total_steps}")
 
     model.zero_grad()
-    accuracy, f1 = train(
+    train(
         args,
         labeled_trainloader,
         unlabeled_trainloader,

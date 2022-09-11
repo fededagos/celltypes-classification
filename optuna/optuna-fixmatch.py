@@ -1,3 +1,4 @@
+# Adapted from https://github.com/kekmodel/FixMatch-pytorch
 import os
 import logging
 import sys

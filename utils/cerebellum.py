@@ -1,3 +1,5 @@
+# Custom wrappers for FixMatch mad to work with the cerebellum dataset.
+# Some functions are borrowed from https://github.com/kekmodel/FixMatch-pytorch
 import logging
 import math
 import torch

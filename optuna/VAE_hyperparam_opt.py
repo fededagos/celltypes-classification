@@ -105,7 +105,7 @@ def ELBO_VAE(enc, dec, X, beta=1):
           over Z when called on a batch of inputs X
     dec : Instance of `Decoder` class, which returns a distribution
           over X when called on a batch of inputs Z
-    X   : A batch of datapoints, torch.FloatTensor of shape = (batch_size, 1, 28, 28).
+    X   : A batch of datapoints, torch.FloatTensor of shape = (batch_size, 1, 10, 60).
 
     """
 

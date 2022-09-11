@@ -179,7 +179,7 @@ def ELBO_VAE(enc, dec, X, beta=1):
           over Z when called on a batch of inputs X
     dec : Instance of `Decoder` class, which returns a distribution
           over X when called on a batch of inputs Z
-    X   : A batch of datapoints, torch.FloatTensor of shape = (batch_size, 1, 28, 28).
+    X   : A batch of datapoints, torch.FloatTensor of shape = (batch_size, 1, 10, 60).
 
     """
 
@@ -240,7 +240,7 @@ def define_wvf_model():
 
         # Create and properly init decoder layer
         cur_dec_layer = nn.Linear(out_features, in_features)
-        if INIT_WEIGHTS: 
+        if INIT_WEIGHTS:
             cur_dec_layer.weight.data.normal_(0, 0.001)
             cur_dec_layer.bias.data.normal_(0, 0.001)
 
@@ -285,7 +285,9 @@ def define_acg_model(trial: optuna.trial.Trial):
             first_units = out_features
         else:
             # Ensuring it is a valid VAE architecture otherwise the reconstructions look like nonsense!
-            out_features = trial.suggest_int("acg_n_units_l{}".format(i), 20, trial.params[f"acg_n_units_l{i-1}"])
+            out_features = trial.suggest_int(
+                "acg_n_units_l{}".format(i), 20, trial.params[f"acg_n_units_l{i-1}"]
+            )
             p = trial.suggest_float("acg_dropout_l{}".format(i), 0.1, 0.5, step=0.01)
 
         # Create and properly init encoder layer
@@ -446,7 +448,7 @@ def objective(trial: optuna.trial.Trial):
     # First setting all models to evaluation mode
     wvf_enc.eval()
     acg_enc.eval()
-    
+
     tmp_features = []
     for acg in tqdm(LABELS_ONLY_DATASET.acg):
         acg_tensor = (
@@ -477,7 +479,6 @@ def objective(trial: optuna.trial.Trial):
 
     h5.set_seed(SEED)
 
-    
     forest_params = optuna.load_study(
         "random-forest-feat-eng", f"sqlite:///random-forest-feat-eng.db"
     ).best_params

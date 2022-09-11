@@ -322,11 +322,10 @@ class OneHot(object):
 
 
 class SwapChannels(object):
-    """Crop randomly the image in a sample.
-
-    Args:
-        output_size (tuple or int): Desired output size. If int, square crop
-            is made.
+    """
+    Swaps the indices of even and odd channels, mimicking the biological
+    scenario in which the probe was oriented in the same way along the longitudinal axis
+    but in the opposite way along the dorsoventral axis.
     """
 
     def __init__(self, p=0.3):
@@ -357,11 +356,10 @@ class SwapChannels(object):
 
 
 class VerticalReflection(object):
-    """Crop randomly the image in a sample.
-
-    Args:
-        output_size (tuple or int): Desired output size. If int, square crop
-            is made.
+    """
+    Reverses the indices of the waveform channels,
+    mimicking the  scenario in which the probe was oriented in the same way along
+    the dorsoventral axis but in the opposite way along the longitudinal axis.
     """
 
     def __init__(self, p=0.3):

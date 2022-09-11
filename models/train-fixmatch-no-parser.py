@@ -1,4 +1,4 @@
-import argparse
+# Adapted from https://github.com/kekmodel/FixMatch-pytorch
 import logging
 import math
 import os

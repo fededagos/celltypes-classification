@@ -96,6 +96,18 @@ def normalise_wf(wf):
 
 
 def preprocess(image, central_range=60, n_channels=10):
+    """
+    It takes an image, and returns a copy of the image with the central 60 pixels in the horizontal
+    direction, and the central 10 pixels in the vertical direction
+
+    Args:
+      image: the image to be preprocessed
+      central_range: the number of pixels to take from the centre of the image. Defaults to 60
+      n_channels: The number of channels to use in the final image. Defaults to 10
+
+    Returns:
+      The image is being cropped to the central range and the number of channels specified.
+    """
     peak_channel = image.shape[0] // 2
     centre = image.shape[1] // 2
     return image[
@@ -118,14 +130,22 @@ def extract_raw_data(
     normalise=True,
 ):
     """
-    Params:
-    dataset: Path to the current dataset
-    TODO : write doc for the rest :)
+    It takes a dataset, extracts the waveforms, acg and labels, and returns them as lists
 
-    Returns:
-    wf_list (list):
-    acg_list (list):
-    labels_list (list):
+    Args:
+        dataset: the path to the hdf5 file containing the dataset
+        central_range: the number of samples to extract from the central part of the waveform
+        n_channels: number of channels to extract from the waveform
+        raw_spikes: if True, returns the raw spike times instead of the ACG. If None, returns both.
+        Defaults to False
+        labels_only: if True, only labelled neurons are extracted. If False, also unlabelled ones are
+        extracted, up to a maximum of n_unlab. Defaults to True
+        n_unlab: number of unlabelled neurons to extract. Defaults to 0
+        quality_check: if True, we check for sane spikes and fn/fp spikes. Defaults to True
+        debug: if True, will plot the discarded neurons and their ACG and waveforms. Defaults to False
+        json_path: path to the json file containing the dataset paths
+        verbose: if True, prints out the reason why a neuron was discarded. Defaults to False
+        normalise: if True, normalises the waveforms and the acg. Defaults to True
     """
     # Load dataset paths if in debug mode
     if debug == True and json_path is None:
@@ -469,7 +489,7 @@ def set_seed(seed=None, seed_torch=True):
     seed : Integer
             A non-negative integer that defines the random state. Default is `None`.
     seed_torch : Boolean
-          ii  If `True` sets the random seed for pytorch tensors, so pytorch module
+            If `True` sets the random seed for pytorch tensors, so pytorch module
             must be imported. Default is `True`.
 
     Returns:
@@ -493,6 +513,10 @@ def set_seed(seed=None, seed_torch=True):
 
 
 class NeuronsDataset:
+    """
+    Custom class for the cerebellum dataset, containing all infomation about the labelled and unlabelled neurons.
+    """
+
     def __init__(
         self,
         dataset,
@@ -634,6 +658,9 @@ class NeuronsDataset:
         )
 
     def make_labels_only(self):
+        """
+        It removes all the data points that have no labels
+        """
         mask = self.targets != -1
         self.wf = self.wf[mask]
         self.acg = self.acg[mask]
@@ -642,6 +669,13 @@ class NeuronsDataset:
         self.spikes_list = np.array(self.spikes_list, dtype=object)[mask].tolist()
 
     def make_full_dataset(self, wf_only=False, acg_only=False):
+        """
+        > This function takes the waveform and ACG data and concatenates them into a single array
+
+        Args:
+            wf_only: If True, only the waveform data will be used. Defaults to False
+            acg_only: If True, only the ACG data will be used. Defaults to False
+        """
         if wf_only:
             self.full_dataset = self.wf
         elif acg_only:
@@ -650,6 +684,14 @@ class NeuronsDataset:
             self.full_dataset = np.concatenate((self.wf, self.acg), axis=1)
 
     def min_max_scale(self, mean=False):
+        """
+        `min_max_scale` takes the waveform and ACG and scales them to the range [-1, 1] by dividing by the
+        maximum absolute value of the waveform and ACG
+
+        Args:
+            mean: If True, the mean of the first 100 largest waveforms will be used as the scaling value.
+            If False, the maximum value of the waveforms will be used. Defaults to False.
+        """
         if mean:
             self._scale_value_wf = (np.sort(self.wf.ravel())[:100]).mean()
             self._scale_value_acg = (np.sort(self.acg.ravel())[-100:]).mean()

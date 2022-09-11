@@ -1,3 +1,4 @@
+# Adapted from https://pyro.ai/examples/ss-vae.html
 import os
 import sys
 import inspect
@@ -94,21 +95,20 @@ composed = datasets.CustomCompose(
 class SSVAE(nn.Module):
     """
     This class encapsulates the parameters (neural networks) and models & guides needed to train a
-    semi-supervised variational auto-encoder on the MNIST image dataset
+    semi-supervised variational auto-encoder on the cerebellum dataset
 
-    :param output_size: size of the tensor representing the class label (10 for MNIST since
-                        we represent the class labels as a one-hot vector with 10 components)
-    :param input_size: size of the tensor representing the image (28*28 = 784 for our MNIST dataset
-                       since we flatten the images and scale the pixels to be in [0,1])
+    :param output_size: size of the tensor representing the class label (6 for cerebellum since
+                        we represent the class labels as a one-hot vector with 6 components)
+    :param input_size: size of the tensor representing the image (10*60+100 = 700 for the cerebellum dataset
+                       since we flatten the waveforms and concatenate the ACG)
     :param z_dim: size of the tensor representing the latent random variable z
-                  (handwriting style for our MNIST dataset)
+                  (conceivably type of waveform and ACG)
     :param hidden_layers: a tuple (or list) of MLP layers to be used in the neural networks
                           representing the parameters of the distributions in our model
     :param use_cuda: use GPUs for faster training
     :param aux_loss_multiplier: the multiplier to use with the auxiliary loss
     """
 
-    # TODO Mind these default parameters!!
     def __init__(
         self,
         output_size=N_CLASSES,
@@ -152,9 +152,6 @@ class SSVAE(nn.Module):
         hidden_sizes_classifier = self.hidden_layers_classifier
 
         # define the neural networks used later in the model and the guide.
-        # these networks are MLPs (multi-layered perceptrons or simple feed-forward networks)
-        # where the provided activation parameter is used on every linear layer except
-        # for the output layer where we use the provided output_activation parameter
         self.encoder_y = MLP(
             [self.input_size] + hidden_sizes_classifier + [self.output_size],
             activation=self.non_linearity,
@@ -192,14 +189,14 @@ class SSVAE(nn.Module):
     def model(self, xs, ys=None):
         """
         The model corresponds to the following generative process:
-        p(z) = normal(0,I)              # handwriting style (latent)
-        p(y|x) = categorical(I/10.)     # which digit (semi-supervised)
-        p(x|y,z) = bernoulli(loc(y,z))   # an image
+        p(z) = normal(0,I)              # Waveform and ACG style
+        p(y|x) = categorical(I/10.)     # which cell type
+        p(x|y,z) = Normal(loc(y,z))     # a vector containing the ACG and waveform in space
         loc is given by a neural network  `decoder`
 
-        :param xs: a batch of scaled vectors of pixels from an image
+        :param xs: a batch of scaled vectors of concatenated ACG and waveform
         :param ys: (optional) a batch of the class labels i.e.
-                   the digit corresponding to the image(s)
+                   the cell type corresponding to the image(s)
         :return: None
         """
         # register this pytorch module and all of its sub-modules with pyro
@@ -209,25 +206,24 @@ class SSVAE(nn.Module):
         options = dict(dtype=xs.dtype, device=xs.device)
         with pyro.plate("data"):
 
-            # sample the handwriting style from the constant prior distribution
+            # sample the latent from the constant prior distribution
             prior_loc = torch.zeros(batch_size, self.z_dim, **options)
             prior_scale = torch.ones(batch_size, self.z_dim, **options)
             zs = pyro.sample("z", dist.Normal(prior_loc, prior_scale).to_event(1))
 
-            # if the label y (which digit to write) is supervised, sample from the
+            # if the label y is supervised, sample from the
             # constant prior, otherwise, observe the value (i.e. score it against the constant prior)
             alpha_prior = torch.ones(batch_size, self.output_size, **options) / (
                 1.0 * self.output_size
             )
             ys = pyro.sample("y", dist.OneHotCategorical(alpha_prior), obs=ys)
 
-            # Finally, score the image (x) using the handwriting style (z) and
-            # the class label y (which digit to write) against the
-            # parametrized distribution p(x|y,z) = bernoulli(decoder(y,z))
-            # where `decoder` is a neural network. We disable validation
-            # since the decoder output is a relaxed Bernoulli value.
+            # Finally, score the x using the latent (z) and
+            # the class label y against the
+            # parametrized distribution p(x|y,z) = Normal(decoder(y,z))
+            # where `decoder` is a neural network.
             loc, scale = self.decoder.forward([zs, ys])
-            #! Change also here for Normal!
+
             pyro.sample(
                 "x", dist.Normal(loc, scale, validate_args=False).to_event(1), obs=xs
             )
@@ -237,27 +233,27 @@ class SSVAE(nn.Module):
     def guide(self, xs, ys=None):
         """
         The guide corresponds to the following:
-        q(y|x) = categorical(alpha(x))              # infer digit from an image
-        q(z|x,y) = normal(loc(x,y),scale(x,y))       # infer handwriting style from an image and the digit
+        q(y|x) = categorical(alpha(x))              # infer cell type from vector
+        q(z|x,y) = normal(loc(x,y),scale(x,y))       # infer style from a vector and the cell type
         loc, scale are given by a neural network `encoder_z`
         alpha is given by a neural network `encoder_y`
 
-        :param xs: a batch of scaled vectors of pixels from an image
+        :param xs: a batch of scaled vectors of concatenated waveforms and ACGs
         :param ys: (optional) a batch of the class labels i.e.
-                   the digit corresponding to the image(s)
+                   the cell types corresponding to the vector(s)
         :return: None
         """
         # inform Pyro that the variables in the batch of xs, ys are conditionally independent
         with pyro.plate("data"):
 
-            # if the class label (the digit) is not supervised, sample
-            # (and score) the digit with the variational distribution
+            # if the class label is not supervised, sample
+            # (and score) the cell type with the variational distribution
             # q(y|x) = categorical(alpha(x))
             if ys is None:
                 alpha = self.encoder_y.forward(xs)
                 ys = pyro.sample("y", dist.OneHotCategorical(alpha))
 
-            # sample (and score) the latent handwriting-style with the variational
+            # sample (and score) the latent with the variational
             # distribution q(z|x,y) = normal(loc(x,y),scale(x,y))
             loc, scale = self.encoder_z.forward([xs, ys])
             pyro.sample("z", dist.Normal(loc, scale).to_event(1))
@@ -273,11 +269,11 @@ class SSVAE(nn.Module):
         # compute all class probabilities for the image(s)
         alpha = self.encoder_y.forward(xs)
 
-        # get the index (digit) that corresponds to
+        # get the index (label) that corresponds to
         # the maximum predicted class probability
         res, ind = torch.topk(alpha, 1)
 
-        # convert the digit(s) to one-hot tensor(s)
+        # convert the label(s) to one-hot tensor(s)
         ys = torch.zeros_like(alpha).scatter_(1, ind, 1.0)
         return ys
 
