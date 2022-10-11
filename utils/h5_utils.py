@@ -311,6 +311,9 @@ def extract_raw_data(
             neuron_metadata = dataset_name + "/" + str(neuron_id)
             dataset_info.append(str(neuron_metadata))
         except KeyError as e:
+            dataset_name = (
+                get_neuron_attr(dataset, wf_n, "dataset_id").ravel()[0].decode("utf-8")
+            )
             if verbose:
                 print(f"KeyError for neuron {wf_n}, skipping...")
                 print(f"Further details: {e.args[0]}")
@@ -546,9 +549,12 @@ class NeuronsDataset:
                 label = get_neuron_attr(dataset, wf_n, "optotagged_label").ravel()[0]
 
                 # If the neuron is labelled we extract it anyways
-                if label != 0:
+                if label != 0 and not isinstance(label, (np.ndarray, np.int64)):
                     label = str(label.decode("utf-8"))
                     self.labels_list.append(label)
+                    
+                elif isinstance(label, (np.ndarray, np.int64)):
+                    label = label.item()
 
                 # Otherwise extract it, if we still did not reach the desired count of unlabelled ones
                 else:
@@ -592,6 +598,20 @@ class NeuronsDataset:
 
                 # Extract waveform using provided parameters
                 wf = get_neuron_attr(dataset, wf_n, "mean_waveform_preprocessed")
+                
+                # Make sure if we need to transpose the waveform or not
+                if wf.shape[0] > wf.shape[1]:
+                    wf = wf.T
+                
+                # Also, if the waveform is 1D (i.e. only one channel), we need to tile it to make it 2D.
+                # Alternatively, if it is not spread on enough channels, we want to tile the remaining
+                if wf.squeeze().ndim == 1:
+                    wf = np.tile(wf, (n_channels, 1))
+                    
+                if wf.shape[0] < n_channels:
+                    repeats = [wf[0][None, :]] * (n_channels - wf.shape[0])
+                    wf = np.concatenate((*repeats, wf), axis = 0)
+
                 if normalise:
                     self.wf_list.append(
                         preprocess(normalise_wf(wf), central_range, n_channels)
@@ -624,6 +644,9 @@ class NeuronsDataset:
                 self.info.append(str(neuron_metadata))
 
             except KeyError as e:
+                dataset_name = (
+                    get_neuron_attr(dataset, wf_n, "dataset_id").ravel()[0].decode("utf-8")
+                )
                 discarded_df = pd.concat(
                     (
                         discarded_df,
