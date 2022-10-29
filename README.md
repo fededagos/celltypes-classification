@@ -1,6 +1,7 @@
 # Deep Learning Approaches Towards Semi-Supervised Cell Type Classification in Cerebellar Neuropixels Recordings
 
-Source code for the homonymous dissertation submitted as part requirement for the MSc Machine Learning at UCL.
+Source code for the homonymous dissertation submitted as part requirement for the MSc Machine Learning at UCL. 
+Full text dissertation available for download [here](https://files.fededagos.me/COMP0091_Dagostino.pdf).
 
 The **cerebellum dataset** on which all experiments are based can be downloaded [here](https://files.fededagos.me/datasets/cerebellum_dataset.h5).
 To correctly replicate the experiments, download the dataset and place it in your root directory.
